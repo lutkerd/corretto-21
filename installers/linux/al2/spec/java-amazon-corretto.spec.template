@@ -30,6 +30,7 @@
 %global additional_configure_options     $additional_configure_options
 %global zlib_option $zlib_option
 %global use_gcc_ver $use_gcc_ver
+%global build_test_image $build_test_image
 
 # Disable build_id links as they can collide between versions of Corretto
 %global _build_id_links none
@@ -48,6 +49,11 @@
 %if 0%{?use_gcc_ver:1} == 1 && "%{use_gcc_ver}" == "%{nil}"
 %undefine use_gcc_ver
 %endif
+
+%if 0%{?build_test_image:1} == 1 && "%{build_test_image}" == "%{nil}"
+%undefine build_test_image
+%endif
+
 # If we need to rev the package for something outside of what the
 # Corretto team is doing, we can define release_ext.
 # %global release_ext  1
@@ -204,7 +210,6 @@ Provides: jre-headless = %{epoch}:%{java_version}
 Provides: jre-${java_spec_version}-headless = %{epoch}:%{version}-%{release}
 Provides: jre-${java_spec_version}-amazon-corretto-headless = %{epoch}:%{version}-%{release}
 
-
 %description headless
 Amazon Corretto's packaging of the runtime core elements of the
 OpenJDK ${java_spec_version} code. (Headless environment)
@@ -244,6 +249,22 @@ Requires: %{name}-devel%{?1}%{?_isa} = %{epoch}:%{version}-%{release}
 
 %description jmods
 Amazon Corretto's packaging of the OpenJDK ${java_spec_version} jmods.
+
+%if "%{build_test_image}" == "1"
+%package testimage
+Summary: Amazon Corretto ${java_spec_version} testimage
+Group: Development
+AutoProv: 1
+AutoReq: 0
+
+Provides: java-${java_spec_version}-testimage = %{epoch}:%{java_version}
+Provides: java-${java_spec_version}-testimage = %{epoch}:%{version}-%{release}
+# Require devel package.
+Requires: %{name}-devel%{?1}%{?_isa} = %{epoch}:%{version}-%{release}
+
+%description testimage
+Amazon Corretto's packaging of the OpenJDK ${java_spec_version} testimage.
+%endif
 
 %prep
 %setup -q -n src -c
@@ -287,12 +308,21 @@ bash ./configure \\
         --with-native-debug-symbols=none
 
 make images
+
+%if "%{build_test_image}" == "1"
+make test-image
+%endif
+
 make LOG=debug docs
 
 %install
 rm -rf %{buildroot}
 install -d -m 755 %{buildroot}%{java_home}
 cp -a %{java_imgdir}/jdk/* %{buildroot}%{java_home}
+%if "%{build_test_image}" == "1"
+mkdir -p %{buildroot}%{java_home}/test
+cp -a %{java_imgdir}/test/* %{buildroot}%{java_home}/test/
+%endif
 rm -rf %{buildroot}%{java_home}/demo
 
 # Properly set permissions for executables and libs to enable auto-provides scanning
@@ -495,6 +525,13 @@ fi
 %doc %{java_imgdir}/docs/resources
 %doc %{java_imgdir}/docs/specs
 %license %{java_imgdir}/docs/legal
+
+%if "%{build_test_image}" == "1"
+%files testimage
+%dir %{java_home}/test
+%{java_home}/test
+%endif
+
 
 %changelog
 * Mon Oct 10 2022 Dan Lutker <lutkerd@amazon.com>
